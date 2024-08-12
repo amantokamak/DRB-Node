@@ -114,7 +114,7 @@ func GetFulfillRandomnessData(round string) ([]utils.FulfillRandomnessData, erro
 }
 
 // BeforeRecoverPhase checks if the local node is the leader by recovering the minimum hash and compares it against its own.
-func BeforeRecoverPhase(round string) (utils.RecoveryResult, error) {
+func (l *ServiceClient) BeforeRecoverPhase(round string) (utils.RecoveryResult, error) {
 	logrus.Info("Starting BeforeRecoverPhase...")
 
 	// Fetch setup values
