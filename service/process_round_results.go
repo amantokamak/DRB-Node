@@ -7,18 +7,12 @@ import (
 	"math/big"
 	"time"
 
-	"sync"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/tokamak-network/DRB-Node/globals"
+	"github.com/tokamak-network/DRB-Node/service/transactions"
 	"github.com/tokamak-network/DRB-Node/utils"
 )
 
-var roundStatus sync.Map
-
-func ProcessRoundResults(ctx context.Context) error  {
-	serviceClient := globals.GlobalServiceClient
-	
+func ProcessRoundResults(ctx context.Context, pofClient *utils.PoFClient) error {
 	config := utils.GetConfig()
 	isOperator, err := IsOperator(config.WalletAddress)
 	if err != nil {
@@ -27,15 +21,18 @@ func ProcessRoundResults(ctx context.Context) error  {
 	}
 
 	if !isOperator {
-		ctx := context.Background()
-		serviceClient.OperatorDeposit(ctx)
+		_,_,err := transactions.OperatorDeposit(ctx, pofClient) // Call as function
+        if err != nil {
+            log.Printf("Error during OperatorDeposit: %v", err)
+            return err
+        }
 	}
 
-	results, err := l.GetRandomWordRequested()
-	if err != nil {
-		log.Printf("Error fetching round results: %v", err)
-		return err
-	}
+	results, err := GetRandomWordRequested(pofClient)
+    if err != nil {
+        log.Printf("Error fetching round results: %v", err)
+        return err
+    }
 
 	if len(results.RecoverableRounds) > 0 {
 		fmt.Println("Processing Recoverable Rounds...")
@@ -56,10 +53,13 @@ func ProcessRoundResults(ctx context.Context) error  {
 						continue
 					}
 
-					ctx := context.Background()
-					l.Recover(ctx, round, recoveryData.Y)
-					fmt.Printf("Processing recoverable round: %s\n", roundStr)
-					processedRounds[roundStr] = true
+					err := transactions.Recover(ctx, round, recoveryData.Y, pofClient)
+					if err != nil {
+						log.Printf("Failed to recover round: %s, error: %v", roundStr, err)
+					} else {
+						fmt.Printf("Processing recoverable round: %s\n", roundStr)
+						processedRounds[roundStr] = true
+					}
 					time.Sleep(3 * time.Second)
 					break
 				}
@@ -87,9 +87,12 @@ func ProcessRoundResults(ctx context.Context) error  {
 				continue
 			}
 
-			ctx := context.Background()
-			l.Commit(ctx, round)
-			fmt.Printf("Processing committable round: %s\n", roundStr)
+			address, byteData, err := transactions.Commit(ctx, round, pofClient)
+			if err != nil {
+				log.Printf("Failed to commit round: %v", err)
+			} else {
+				fmt.Printf("Commit successful for round %s!\nAddress: %s\nData: %x\n", round.String(), address.Hex(), byteData)
+			}
 			processedRounds[roundStr] = true
 		}
 	}
@@ -104,8 +107,12 @@ func ProcessRoundResults(ctx context.Context) error  {
 				continue
 			}
 
-			ctx := context.Background()
-			l.FulfillRandomness(ctx, round)
+			tx, err := transactions.FulfillRandomness(ctx, round, pofClient)
+			if err != nil {
+				log.Printf("Failed to fulfill randomness for round: %v", err)
+			} else {
+				log.Printf("FulfillRandomness successful! Tx Hash: %s\n", tx.Hash().Hex())
+			}
 		}
 	}
 
@@ -119,9 +126,12 @@ func ProcessRoundResults(ctx context.Context) error  {
 				continue
 			}
 
-			ctx := context.Background()
-			l.ReRequestRandomWordAtRound(ctx, round)
-			fmt.Printf("Processing re-requestable round: %s\n", roundStr)
+			err := transactions.ReRequestRandomWordAtRound(ctx, round, pofClient)
+			if err != nil {
+				log.Printf("Failed to re-request random word at round: %v", err)
+			} else {
+				log.Printf("Re-request successful for round %s", round.String())
+			}
 		}
 	}
 
@@ -155,9 +165,17 @@ func ProcessRoundResults(ctx context.Context) error  {
 				fmt.Printf("Recovered Data - MsgSender: %s, Omega: %s\n", msgSender.Hex(), omega.String())
 
 				for _, recoveryData := range results.RecoveryData {
+					// Check if the dispute conditions are met
 					if recoveryData.OmegaRecov.Cmp(omega) != 0 && !disputeInitiated {
-						ctx := context.Background()
-						l.DisputeRecover(ctx, round, recoveryData.V, recoveryData.X, recoveryData.Y)
+						// Call DisputeRecover with correct parameters
+						tx, err := transactions.DisputeRecover(ctx, round, recoveryData.V, recoveryData.X, recoveryData.Y, pofClient)
+						if err != nil {
+							log.Printf("Failed to initiate dispute recovery: %v", err)
+							return err // Or handle the error accordingly
+						}
+						log.Printf("Dispute recovery initiated successfully. Tx Hash: %s", tx.Hash().Hex())
+						
+						// Set the flag to true to prevent multiple disputes
 						disputeInitiated = true
 					}
 				}
@@ -201,9 +219,15 @@ func ProcessRoundResults(ctx context.Context) error  {
 				isMyAddressLeader, leaderAddress, _ := FindOffChainLeaderAtRound(roundStr, results.RecoveryData[i].OmegaRecov)
 
 				if msgSender != leaderAddress {
-					ctx := context.Background()
+					// If the current address is supposed to be the leader
 					if isMyAddressLeader {
-						l.DisputeLeadershipAtRound(ctx, round)
+						// Call the DisputeLeadershipAtRound function
+						err := transactions.DisputeLeadershipAtRound(ctx, round, pofClient)
+						if err != nil {
+							return fmt.Errorf("failed to initiate dispute leadership at round: %w", err)
+						}
+			
+						// Log the information
 						fmt.Printf("MsgSender %s is not the leader for round %s\n", msgSender.Hex(), roundStr)
 					}
 				}
@@ -217,4 +241,3 @@ func ProcessRoundResults(ctx context.Context) error  {
 
 	return nil
 }
-

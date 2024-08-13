@@ -17,11 +17,7 @@ import (
 	"github.com/tokamak-network/DRB-Node/utils"
 )
 
-// type ServiceClient struct {
-// 	*utils.PoFClient
-// }
-
-func (l *ServiceClient) GetRandomWordRequested() (*utils.RoundResults, error) {
+func GetRandomWordRequested(pofClient *utils.PoFClient) (*utils.RoundResults, error) {
     config := utils.GetConfig()
     client := graphql.NewClient(config.SubgraphURL)
 
@@ -235,7 +231,7 @@ func (l *ServiceClient) GetRandomWordRequested() (*utils.RoundResults, error) {
         recoverDataMap := make(map[string]utils.RecoveryResult)
 
         if validCommitCount >= 2 && !isRecovered {
-            recoverData, err = l.BeforeRecoverPhase(item.Round)
+            recoverData, err = BeforeRecoverPhase(item.Round, pofClient)
             if err != nil {
                 logrus.Errorf("Error processing BeforeRecoverPhase for round %s: %v", item.Round, err)
                 continue

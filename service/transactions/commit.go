@@ -1,4 +1,4 @@
-package transaction
+package transactions
 
 import (
 	"context"
@@ -12,30 +12,31 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
+	"github.com/tokamak-network/DRB-Node/utils"
 )
 
 var roundStatus sync.Map
 
-func (l *ServiceClient) Commit(ctx context.Context, round *big.Int) (common.Address, []byte, error) {
+func Commit(ctx context.Context, round *big.Int, pofClient *utils.PoFClient) (common.Address, []byte, error) {
 	logger := logrus.WithFields(logrus.Fields{
 		"round": round,
 	})
 
 	logger.Info("Preparing to commit...")
 
-	chainID, err := l.Client.NetworkID(ctx)
+	chainID, err := pofClient.Client.NetworkID(ctx)
 	if err != nil {
 		logger.Errorf("Failed to fetch network ID: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to fetch network ID: %v", err)
 	}
 
-	auth, err := bind.NewKeyedTransactorWithChainID(l.PrivateKey, chainID)
+	auth, err := bind.NewKeyedTransactorWithChainID(pofClient.PrivateKey, chainID)
 	if err != nil {
 		logger.Errorf("Failed to create authorized transactor: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to create authorized transactor: %v", err)
 	}
 
-	nonce, err := l.Client.PendingNonceAt(ctx, auth.From)
+	nonce, err := pofClient.Client.PendingNonceAt(ctx, auth.From)
 	if err != nil {
 		logger.Errorf("Failed to fetch nonce: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to fetch nonce: %v", err)
@@ -43,7 +44,7 @@ func (l *ServiceClient) Commit(ctx context.Context, round *big.Int) (common.Addr
 
 	auth.Nonce = big.NewInt(int64(nonce))
 
-	gasPrice, err := l.Client.SuggestGasPrice(ctx)
+	gasPrice, err := pofClient.Client.SuggestGasPrice(ctx)
 	if err != nil {
 		logger.Errorf("Failed to suggest gas price: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to suggest gas price: %v", err)
@@ -71,25 +72,25 @@ func (l *ServiceClient) Commit(ctx context.Context, round *big.Int) (common.Addr
 		Bitlen: big.NewInt(int64(len(byteData) * 8)), // Assuming byteData is directly the value committed
 	}
 
-	packedData, err := l.ContractABI.Pack("commit", round, commitData)
+	packedData, err := pofClient.ContractABI.Pack("commit", round, commitData)
 	if err != nil {
 		logger.Errorf("Failed to pack data for commit: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to pack data for commit: %v", err)
 	}
 
-	tx := types.NewTransaction(auth.Nonce.Uint64(), l.ContractAddress, nil, 3000000, auth.GasPrice, packedData)
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), l.PrivateKey)
+	tx := types.NewTransaction(auth.Nonce.Uint64(), pofClient.ContractAddress, nil, 3000000, auth.GasPrice, packedData)
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), pofClient.PrivateKey)
 	if err != nil {
 		logger.Errorf("Failed to sign the transaction: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to sign the transaction: %v", err)
 	}
 
-	if err := l.Client.SendTransaction(ctx, signedTx); err != nil {
+	if err := pofClient.Client.SendTransaction(ctx, signedTx); err != nil {
 		logger.Errorf("Failed to send the signed transaction: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to send the signed transaction: %v", err)
 	}
 
-	receipt, err := bind.WaitMined(ctx, l.Client, signedTx)
+	receipt, err := bind.WaitMined(ctx, pofClient.Client, signedTx)
 	if err != nil {
 		logger.Errorf("Failed to wait for transaction to be mined: %v", err)
 		return common.Address{}, nil, fmt.Errorf("failed to wait for transaction to be mined: %v", err)

@@ -1,4 +1,4 @@
-package transaction
+package transactions
 
 import (
 	"context"
@@ -12,37 +12,27 @@ import (
 	"github.com/tokamak-network/DRB-Node/utils"
 )
 
-// ServiceClient is a struct that embeds *utils.PoFClient
-type ServiceClient struct {
-    *utils.PoFClient
-}
-
-// NewServiceClient initializes and returns a new ServiceClient instance
-func NewServiceClient(pofClient *utils.PoFClient) *ServiceClient {
-    return &ServiceClient{PoFClient: pofClient}
-}
-
 // OperatorDeposit deposits a specified amount of Ether to the contract.
-func (sc *ServiceClient) OperatorDeposit(ctx context.Context) (common.Address, *types.Transaction, error) {
+func OperatorDeposit(ctx context.Context, pofClient *utils.PoFClient) (common.Address, *types.Transaction, error) {
 
 	// Use pofClient methods and properties
-	chainID, err := sc.Client.NetworkID(ctx)
+	chainID, err := pofClient.Client.NetworkID(ctx)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to fetch network ID: %v", err)
 	}
 
-	auth, err := bind.NewKeyedTransactorWithChainID(sc.PrivateKey, chainID)
+	auth, err := bind.NewKeyedTransactorWithChainID(pofClient.PrivateKey, chainID)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to create authorized transactor: %v", err)
 	}
 
-	nonce, err := sc.Client.PendingNonceAt(ctx, auth.From)
+	nonce, err := pofClient.Client.PendingNonceAt(ctx, auth.From)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to fetch nonce: %v", err)
 	}
 	auth.Nonce = big.NewInt(int64(nonce))
 
-	gasPrice, err := sc.Client.SuggestGasPrice(ctx)
+	gasPrice, err := pofClient.Client.SuggestGasPrice(ctx)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to suggest gas price: %v", err)
 	}
@@ -53,22 +43,22 @@ func (sc *ServiceClient) OperatorDeposit(ctx context.Context) (common.Address, *
 	amount.SetString("5000000000000000", 10) // 0.005 ether in wei
 	auth.Value = amount                      // Setting the value of the transaction to 0.005 ether
 
-	packedData, err := sc.ContractABI.Pack("operatorDeposit")
+	packedData, err := pofClient.ContractABI.Pack("operatorDeposit")
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to pack data for deposit: %v", err)
 	}
 
-	tx := types.NewTransaction(auth.Nonce.Uint64(), sc.ContractAddress, amount, 3000000, auth.GasPrice, packedData)
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), sc.PrivateKey)
+	tx := types.NewTransaction(auth.Nonce.Uint64(), pofClient.ContractAddress, amount, 3000000, auth.GasPrice, packedData)
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), pofClient.PrivateKey)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to sign the transaction: %v", err)
 	}
 
-	if err := sc.Client.SendTransaction(ctx, signedTx); err != nil {
+	if err := pofClient.Client.SendTransaction(ctx, signedTx); err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to send the signed transaction: %v", err)
 	}
 
-	receipt, err := bind.WaitMined(ctx, sc.Client, signedTx)
+	receipt, err := bind.WaitMined(ctx, pofClient.Client, signedTx)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to wait for transaction to be mined: %v", err)
 	}
