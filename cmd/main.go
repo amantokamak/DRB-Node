@@ -3,10 +3,12 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/tokamak-network/DRB-Node/client"
+	"github.com/tokamak-network/DRB-Node/globals"
 	"github.com/tokamak-network/DRB-Node/logger"
 	"github.com/tokamak-network/DRB-Node/service"
 	"github.com/tokamak-network/DRB-Node/utils"
@@ -30,6 +32,9 @@ func main() {
 	}
 	logger.Log.Info("PoFClient created successfully")
 
+	// Initialize the global PoFClient instance
+	globals.Init(pofClient)
+
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
@@ -37,7 +42,7 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				if err := service.ProcessRoundResults(pofClient); err != nil {
+				if err := service.ProcessRoundResults(context.Background()); err != nil {
 					logger.Log.Errorf("Processing round results failed: %v", err)
 				} else {
 					logger.Log.Info("Round results processed successfully")

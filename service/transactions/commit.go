@@ -12,14 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
-	"github.com/tokamak-network/DRB-Node/utils"
 )
 
 var roundStatus sync.Map
-
-type ServiceClient struct {
-	*utils.PoFClient
-}
 
 func (l *ServiceClient) Commit(ctx context.Context, round *big.Int) (common.Address, []byte, error) {
 	logger := logrus.WithFields(logrus.Fields{

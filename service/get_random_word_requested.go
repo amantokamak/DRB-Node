@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"math/big"
 	"sort"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,9 +17,9 @@ import (
 	"github.com/tokamak-network/DRB-Node/utils"
 )
 
-type ServiceClient struct {
-	*utils.PoFClient
-}
+// type ServiceClient struct {
+// 	*utils.PoFClient
+// }
 
 func (l *ServiceClient) GetRandomWordRequested() (*utils.RoundResults, error) {
     config := utils.GetConfig()
@@ -293,6 +296,19 @@ func (l *ServiceClient) GetRandomWordRequested() (*utils.RoundResults, error) {
             }).Info("Added to complete rounds")
         }
     }
+
+	// Logging the results
+	fmt.Println("---------------------------------------------------------------------------")
+	w := tabwriter.NewWriter(log.Writer(), 0, 0, 1, ' ', tabwriter.Debug)
+	fmt.Fprintln(w, "Category\tRounds")
+	fmt.Fprintln(w, "RecoverableRounds\t", results.RecoverableRounds)
+	fmt.Fprintln(w, "CommittableRounds\t", results.CommittableRounds)
+	fmt.Fprintln(w, "FulfillableRounds\t", results.FulfillableRounds)
+	fmt.Fprintln(w, "ReRequestableRounds\t", results.ReRequestableRounds)
+	fmt.Fprintln(w, "RecoverDisputeableRounds\t", results.RecoverDisputeableRounds)
+	fmt.Fprintln(w, "LeadershipDisputeableRounds\t", results.LeadershipDisputeableRounds)
+	w.Flush()
+	fmt.Println("---------------------------------------------------------------------------")
 
     logrus.Info("Random words requested fetch completed successfully")
     return results, nil

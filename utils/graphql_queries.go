@@ -1,5 +1,3 @@
-// utils/graphql_queries.go
-
 package utils
 
 import "github.com/machinebox/graphql"
@@ -61,6 +59,13 @@ const (
                 success
             }
         }`
+
+    IsOperatorQuery = `
+        query MyQuery($operator: String!) {
+            operatorNumberChangeds(where: {operator: $operator}) {
+                isOperator
+            }
+        }`
 )
 
 // GetRandomWordsRequestedRequest returns a GraphQL request for fetching random words requested.
@@ -94,5 +99,12 @@ func GetCommitDataRequest(round string) *graphql.Request {
 func GetFulfillRandomnessDataRequest(round string) *graphql.Request {
     req := graphql.NewRequest(FulfillRandomnessDataQuery)
     req.Var("round", round)
+    return req
+}
+
+// GetIsOperatorRequest returns a GraphQL request for checking if an address is an operator.
+func GetIsOperatorRequest(operator string) *graphql.Request {
+    req := graphql.NewRequest(IsOperatorQuery)
+    req.Var("operator", operator)
     return req
 }
